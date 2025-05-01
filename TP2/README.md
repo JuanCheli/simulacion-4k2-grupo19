@@ -109,4 +109,4 @@ Sigue estos pasos para configurar y ejecutar el proyecto:
     ```
     El prefijo `(venv)` desaparecerá de tu línea de comandos.
 
-¡Listo! Con estos pasos, puedes ejecutar el proyecto de forma aislada usando un entorno virtual.
+Con estos pasos, puedes ejecutar el proyecto de forma aislada usando un entorno virtual.
