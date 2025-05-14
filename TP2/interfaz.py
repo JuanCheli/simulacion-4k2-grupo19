@@ -5,7 +5,42 @@ import tkinter.ttk as ttk
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import numpy as np
-from utils import (generar_nros_aleatorios, transformar_uniforme, transformar_exponencial, transformar_normal)
+from utils import *
+
+
+# valor crítico χ² para α=0.05, df = 1..30
+CHI2_CRITICOS_005 = {
+    1: 3.841, 
+    2: 5.991,
+    3: 7.815, 
+    4: 9.488, 
+    5: 11.070,
+    6: 12.592, 
+    7: 14.067, 
+    8: 15.507, 
+    9: 16.919,
+    10: 18.307,
+    11: 19.675,
+    12: 21.026, 
+    13: 22.362, 
+    14: 23.685,
+    15: 24.996,
+    16: 26.296,
+    17: 27.587, 
+    18: 28.869, 
+    19: 30.144,
+    20: 31.410,
+    21: 32.671,
+    22: 33.924, 
+    23: 35.172, 
+    24: 36.415,
+    25: 37.652,
+    26: 38.885,
+    27: 40.113,
+    28: 41.337,
+    29: 42.557
+}
+
 
 # Configuración inicial de CustomTkinter
 ctk.set_appearance_mode("System")  # Modos: "System" (por defecto), "Dark", "Light"
@@ -373,7 +408,7 @@ class DistribucionesApp(ctk.CTk):
         
         # Calcular el histograma
         frecuencias, bordes = np.histogram(datos, bins=num_intervalos)
-        
+
         # Crear un título
         titulo = ctk.CTkLabel(self.marco_tabla, text=f"Tabla de Frecuencias ({num_intervalos} intervalos)",
                            font=ctk.CTkFont(size=16, weight="bold"))
@@ -441,6 +476,53 @@ class DistribucionesApp(ctk.CTk):
             etiqueta = ctk.CTkLabel(tabla_frame, text=f"{frec_rel:.4f}")
             etiqueta.grid(row=i+2, column=5, padx=10, pady=3)
         
+            # –– CÁLCULO DE CHI-CUADRADO –– 
+        n = len(datos)
+        dist = self.distribucion_var.get()
+
+        # 1) Frecuencias esperadas para cada intervalo
+        f_esperadas = []
+        for i in range(num_intervalos):
+            a = bordes[i]
+            b = bordes[i+1]
+            if dist == "uniforme":
+                # prob uniforme = (b - a) / (b_total - a_total)
+                a_tot, b_tot = float(self.uniforme_a_var.get()), float(self.uniforme_b_var.get())
+                p = (b - a) / (b_tot - a_tot)
+            elif dist == "exponencial":
+                lamb = float(self.exponencial_lambda_var.get())
+                p = cdf_exponencial(b, lamb) - cdf_exponencial(a, lamb)
+            else:  # normal
+                mu = float(self.normal_media_var.get())
+                sigma = float(self.normal_desviacion_var.get())
+                p = cdf_normal(b, mu, sigma) - cdf_normal(a, mu, sigma)
+            f_esperadas.append(p * n)
+
+        # 2) Estadístico χ²
+        chi2 = sum((obs - exp)**2 / exp for obs, exp in zip(frecuencias, f_esperadas))
+
+        # 3) Grados de libertad
+        if dist == "uniforme":
+            df = num_intervalos - 1
+        elif dist == "exponencial":
+            df = num_intervalos - 2
+        else:
+            df = num_intervalos - 3
+
+        # 4) Valor crítico de la tabla
+        critico = CHI2_CRITICOS_005.get(df, None)
+
+        # 5) Comparación
+        if critico is None:
+            resultado = "df no disponible en tabla"
+        else:
+            rechazo = "Rechazar H₀" if chi2 > critico else "No rechazar H₀"
+            resultado = f"χ²= {chi2:.3f}  |  df={df}  |  χ²₀.₀₅={critico:.3f}  →  {rechazo}"
+
+        # 6) Mostrarlo en la GUI
+        et = ctk.CTkLabel(tabla_frame, text=resultado, font=ctk.CTkFont(size=12, weight="bold"))
+        et.grid(row=num_intervalos+3, column=0, columnspan= len(encabezados), pady=10)
+
         # Configurar el scroll
         tabla_frame.update_idletasks()
         lienzo.config(scrollregion=lienzo.bbox("all"))

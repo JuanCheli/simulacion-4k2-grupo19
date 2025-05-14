@@ -27,3 +27,12 @@ def transformar_normal(serie_uniforme, media, desv):
         normales.append(z2 * desv + media)
 
     return normales
+
+def cdf_exponencial(x, lambd):
+    """CDF de la exponencial en x."""
+    return 1 - math.exp(-lambd * x)
+
+def cdf_normal(x, media, desv):
+    """CDF de la normal en x."""
+    # usando error function
+    return 0.5 * (1 + math.erf((x - media) / (desv * math.sqrt(2))))
