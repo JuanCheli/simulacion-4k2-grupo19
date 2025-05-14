@@ -7,8 +7,16 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import numpy as np
 from utils import *
 
+# Parche para atrapar el TclError en _activate_placeholder
+_original_activate = ctk.CTkEntry._activate_placeholder
+def _safe_activate_placeholder(self):
+    try:
+        _original_activate(self)
+    except tk.TclError:
+        pass
+ctk.CTkEntry._activate_placeholder = _safe_activate_placeholder
 
-# valor crítico χ² para α=0.05, df = 1..30
+# valor crítico χ² para α=0.05, df = 1..30 (PUEDE SER IMPORTADO COMO CONSTANTE)
 CHI2_CRITICOS_005 = {
     1: 3.841, 
     2: 5.991,
@@ -402,130 +410,111 @@ class DistribucionesApp(ctk.CTk):
             etiqueta.grid(row=0, column=i, padx=10, pady=5)
     
     def mostrar_tabla_frecuencias(self, datos, num_intervalos):
-        # Limpiar el marco de tabla
-        for widget in self.marco_tabla.winfo_children():
-            widget.destroy()
-        
-        # Calcular el histograma
+        # — Limpieza y setup —
+        for w in self.marco_tabla.winfo_children():
+            w.destroy()
+        # Histograma y listas mutables
         frecuencias, bordes = np.histogram(datos, bins=num_intervalos)
+        frecuencias = frecuencias.tolist()
+        bordes      = bordes.tolist()
 
-        # Crear un título
-        titulo = ctk.CTkLabel(self.marco_tabla, text=f"Tabla de Frecuencias ({num_intervalos} intervalos)",
-                           font=ctk.CTkFont(size=16, weight="bold"))
-        titulo.pack(pady=10)
-        
-        # Crear un frame para la tabla con scroll
-        frame_tabla = ctk.CTkFrame(self.marco_tabla)
-        frame_tabla.pack(fill="both", expand=True, padx=5, pady=5)
-        
-        # Scrollbar
-        scrollbar_y = ctk.CTkScrollbar(frame_tabla)
-        scrollbar_y.pack(side="right", fill="y")
-        
-        # Crear un lienzo para la tabla
-        lienzo = tk.Canvas(frame_tabla, yscrollcommand=scrollbar_y.set, 
-                          background="#2b2b2b", highlightthickness=0)
-        lienzo.pack(side="left", fill="both", expand=True)
-        
-        scrollbar_y.configure(command=lienzo.yview)
-        
-        # Marco para contener la tabla real
-        tabla_frame = ctk.CTkFrame(lienzo)
-        lienzo.create_window((0, 0), window=tabla_frame, anchor="nw")
-        
-        # Encabezados de la tabla
-        encabezados = ["Intervalo", "Límite Inferior", "Límite Superior", "Marca de Clase", 
-                       "Frecuencia Absoluta", "Frecuencia Relativa"]
-        
-        for i, encabezado in enumerate(encabezados):
-            etiqueta = ctk.CTkLabel(tabla_frame, text=encabezado, 
-                                 font=ctk.CTkFont(size=12, weight="bold"))
-            etiqueta.grid(row=0, column=i, padx=10, pady=5, sticky="nsew")
-        
-        # Línea separadora
-        separador = ttk.Separator(tabla_frame, orient="horizontal")
-        separador.grid(row=1, column=0, columnspan=len(encabezados), sticky="ew", pady=5)
-        
-        # Datos de la tabla
-        total_frec = np.sum(frecuencias)
-        
-        for i in range(num_intervalos):
-            # Intervalo
-            etiqueta = ctk.CTkLabel(tabla_frame, text=f"{i+1}")
-            etiqueta.grid(row=i+2, column=0, padx=10, pady=3)
-            
-            # Límite inferior
-            etiqueta = ctk.CTkLabel(tabla_frame, text=f"{bordes[i]:.4f}")
-            etiqueta.grid(row=i+2, column=1, padx=10, pady=3)
-            
-            # Límite superior
-            etiqueta = ctk.CTkLabel(tabla_frame, text=f"{bordes[i+1]:.4f}")
-            etiqueta.grid(row=i+2, column=2, padx=10, pady=3)
-            
-            # Marca de clase
-            marca = (bordes[i] + bordes[i+1]) / 2
-            etiqueta = ctk.CTkLabel(tabla_frame, text=f"{marca:.4f}")
-            etiqueta.grid(row=i+2, column=3, padx=10, pady=3)
-            
-            # Frecuencia absoluta
-            etiqueta = ctk.CTkLabel(tabla_frame, text=f"{frecuencias[i]}")
-            etiqueta.grid(row=i+2, column=4, padx=10, pady=3)
-            
-            # Frecuencia relativa
-            frec_rel = frecuencias[i] / total_frec if total_frec > 0 else 0
-            etiqueta = ctk.CTkLabel(tabla_frame, text=f"{frec_rel:.4f}")
-            etiqueta.grid(row=i+2, column=5, padx=10, pady=3)
-        
-            # –– CÁLCULO DE CHI-CUADRADO –– 
-        n = len(datos)
+        n    = len(datos)
         dist = self.distribucion_var.get()
 
-        # 1) Frecuencias esperadas para cada intervalo
+        # — 1) Frecuencias esperadas iniciales —
         f_esperadas = []
-        for i in range(num_intervalos):
-            a = bordes[i]
-            b = bordes[i+1]
+        for i in range(len(frecuencias)):
+            a, b = bordes[i], bordes[i+1]
             if dist == "uniforme":
-                # prob uniforme = (b - a) / (b_total - a_total)
-                a_tot, b_tot = float(self.uniforme_a_var.get()), float(self.uniforme_b_var.get())
-                p = (b - a) / (b_tot - a_tot)
+                a0, b0 = float(self.uniforme_a_var.get()), float(self.uniforme_b_var.get())
+                p = (b - a) / (b0 - a0)
             elif dist == "exponencial":
-                lamb = float(self.exponencial_lambda_var.get())
-                p = cdf_exponencial(b, lamb) - cdf_exponencial(a, lamb)
+                lam = float(self.exponencial_lambda_var.get())
+                p = cdf_exponencial(b, lam) - cdf_exponencial(a, lam)
             else:  # normal
-                mu = float(self.normal_media_var.get())
-                sigma = float(self.normal_desviacion_var.get())
+                mu, sigma = float(self.normal_media_var.get()), float(self.normal_desviacion_var.get())
                 p = cdf_normal(b, mu, sigma) - cdf_normal(a, mu, sigma)
             f_esperadas.append(p * n)
 
-        # 2) Estadístico χ²
-        chi2 = sum((obs - exp)**2 / exp for obs, exp in zip(frecuencias, f_esperadas))
+        # — 2) Función auxiliar de agrupamiento —
+        def agrupar(i, j):
+            i0, j0 = sorted((i, j))
+            bordes[i0+1]       = bordes[j0+1]
+            frecuencias[i0]   += frecuencias[j0]
+            f_esperadas[i0]   += f_esperadas[j0]
+            del bordes[j0+1], frecuencias[j0], f_esperadas[j0]
 
-        # 3) Grados de libertad
+        # — 3) Agrupar intervalos con fe < 5 —
+        changed = True
+        while changed:
+            changed = False
+            for idx, fe in enumerate(f_esperadas):
+                if fe < 5:
+                    if idx == 0:
+                        vecino = 1
+                    elif idx == len(f_esperadas) - 1:
+                        vecino = idx - 1
+                    else:
+                        vecino = idx+1 if f_esperadas[idx+1] < f_esperadas[idx-1] else idx-1
+                    agrupar(idx, vecino)
+                    changed = True
+                    break
+
+        # — 4) Construcción de la tabla —
+        k = len(frecuencias)
+        titulo = ctk.CTkLabel(self.marco_tabla,
+            text=f"Tabla de Frecuencias ({k} intervalos tras agrupamiento)",
+            font=ctk.CTkFont(size=16, weight="bold"))
+        titulo.pack(pady=10)
+
+        frame = ctk.CTkFrame(self.marco_tabla)
+        frame.pack(fill="both", expand=True, padx=5, pady=5)
+        scrollbar = ctk.CTkScrollbar(frame); scrollbar.pack(side="right", fill="y")
+        lienzo = tk.Canvas(frame, yscrollcommand=scrollbar.set,
+                        background="#2b2b2b", highlightthickness=0)
+        lienzo.pack(side="left", fill="both", expand=True)
+        scrollbar.configure(command=lienzo.yview)
+        tabla = ctk.CTkFrame(lienzo); lienzo.create_window((0,0), window=tabla, anchor="nw")
+
+        # Encabezados
+        cols = ["#","Limite inferior","Limite superior","Marca de clase","Frecuencia observada","Frecuencia esperada"]
+        for c, h in enumerate(cols):
+            lbl = ctk.CTkLabel(tabla, text=h, font=ctk.CTkFont(weight="bold"))
+            lbl.grid(row=0, column=c, padx=8, pady=4, sticky="nsew")
+        ttk.Separator(tabla, orient="horizontal")\
+            .grid(row=1, column=0, columnspan=len(cols), sticky="ew", pady=4)
+
+        total = sum(frecuencias)
+        for i in range(k):
+            # número de intervalo
+            ctk.CTkLabel(tabla, text=str(i+1)).grid(row=i+2, column=0)
+            # límites
+            ctk.CTkLabel(tabla, text=f"{bordes[i]:.4f}").grid(row=i+2, column=1)
+            ctk.CTkLabel(tabla, text=f"{bordes[i+1]:.4f}").grid(row=i+2, column=2)
+            # marca de clase
+            marca = (bordes[i] + bordes[i+1]) / 2
+            ctk.CTkLabel(tabla, text=f"{marca:.4f}").grid(row=i+2, column=3)
+            # observada y esperada
+            ctk.CTkLabel(tabla, text=str(frecuencias[i])).grid(row=i+2, column=4)
+            ctk.CTkLabel(tabla, text=f"{f_esperadas[i]:.2f}").grid(row=i+2, column=5)
+
+        # — 5) Cálculo final de χ² y decisión —
+        chi2 = sum((o - e)**2/e for o,e in zip(frecuencias, f_esperadas))
         if dist == "uniforme":
-            df = num_intervalos - 1
+            df = k - 1
         elif dist == "exponencial":
-            df = num_intervalos - 2
+            df = k - 2
         else:
-            df = num_intervalos - 3
+            df = k - 3
+        crit = CHI2_CRITICOS_005.get(df, float('nan'))
+        decision = "Rechazar H₀" if chi2 > crit else "No rechazar H₀"
+        texto = f"χ²={chi2:.3f}  df={df}  χ²₀.₀₅={crit:.3f} → {decision}"
+        lbl_res = ctk.CTkLabel(tabla, text=texto, font=ctk.CTkFont(size=12, weight="bold"))
+        lbl_res.grid(row=k+3, column=0, columnspan=len(cols), pady=10)
 
-        # 4) Valor crítico de la tabla
-        critico = CHI2_CRITICOS_005.get(df, None)
-
-        # 5) Comparación
-        if critico is None:
-            resultado = "df no disponible en tabla"
-        else:
-            rechazo = "Rechazar H₀" if chi2 > critico else "No rechazar H₀"
-            resultado = f"χ²= {chi2:.3f}  |  df={df}  |  χ²₀.₀₅={critico:.3f}  →  {rechazo}"
-
-        # 6) Mostrarlo en la GUI
-        et = ctk.CTkLabel(tabla_frame, text=resultado, font=ctk.CTkFont(size=12, weight="bold"))
-        et.grid(row=num_intervalos+3, column=0, columnspan= len(encabezados), pady=10)
-
-        # Configurar el scroll
-        tabla_frame.update_idletasks()
+        tabla.update_idletasks()
         lienzo.config(scrollregion=lienzo.bbox("all"))
+
         
 # Función para iniciar la aplicación
 def iniciar_app():
