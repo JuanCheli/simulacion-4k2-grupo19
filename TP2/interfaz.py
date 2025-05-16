@@ -6,6 +6,8 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import numpy as np
 from utils import *
+from tkinter import filedialog
+import os
 
 # Parche para atrapar el TclError en _activate_placeholder
 _original_activate = ctk.CTkEntry._activate_placeholder
@@ -108,12 +110,37 @@ class DistribucionesApp(ctk.CTk):
                                          font=ctk.CTkFont(size=14, weight="bold"),
                                          height=40)
         self.boton_generar.pack(pady=15)
+
+        # Botón para exportar la muestra
+        self.boton_exportar = ctk.CTkButton(self.marco_principal, text="Exportar a Excel",
+                                            command=self.exportar_a_excel,
+                                            font=ctk.CTkFont(size=14),
+                                            height=40,
+                                            fg_color="#28a745",  # Color verde para distinguirlo
+                                            hover_color="#218838")
+        self.boton_exportar.pack(pady=5)
         
         # Crear pestañas para mostrar diferentes vistas
         self.crear_pestanas()
         
         # Configurar el cambio de parámetros cuando cambie la distribución
         self.distribucion_var.trace_add("write", lambda *args: self.actualizar_parametros())
+
+    def exportar_a_excel(self):
+        """
+        Exporta los datos generados a un archivo Excel.
+        """
+        if self.datos_generados is None:
+            messagebox.showerror("Error", "No hay datos para exportar. Genera una muestra primero.")
+            return
+
+        # Importamos aquí para evitar problemas si no está instalado openpyxl
+        try:
+            from export_excel import exportar_a_excel
+            exportar_a_excel(self)
+        except ImportError:
+            messagebox.showerror("Error",
+                                 "No se pudo cargar el módulo de exportación. Asegúrate de tener instalado openpyxl:\n\npip install openpyxl")
     
     def crear_selector_distribucion(self):
         marco_distribucion = ctk.CTkFrame(self.marco_principal)
