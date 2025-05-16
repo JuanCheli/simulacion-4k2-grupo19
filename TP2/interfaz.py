@@ -127,9 +127,6 @@ class DistribucionesApp(ctk.CTk):
         self.distribucion_var.trace_add("write", lambda *args: self.actualizar_parametros())
 
     def exportar_a_excel(self):
-        """
-        Exporta los datos generados a un archivo Excel.
-        """
         if self.datos_generados is None:
             messagebox.showerror("Error", "No hay datos para exportar. Genera una muestra primero.")
             return
