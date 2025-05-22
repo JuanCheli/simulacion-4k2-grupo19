@@ -437,13 +437,24 @@ class DistribucionesApp(ctk.CTk):
         # — Limpieza y setup —
         for w in self.marco_tabla.winfo_children():
             w.destroy()
-        # Histograma y listas mutables
-        frecuencias, bordes = np.histogram(datos, bins=num_intervalos)
-        frecuencias = frecuencias.tolist()
-        bordes      = bordes.tolist()
 
         n    = len(datos)
         dist = self.distribucion_var.get()
+
+        # Definir bordes explícitamente para distribución uniforme
+        if dist == "uniforme":
+            a0, b0 = float(self.uniforme_a_var.get()), float(self.uniforme_b_var.get())
+            # Crear bordes uniformes basados en los parámetros exactos de la distribución
+            bordes = np.linspace(a0, b0, num_intervalos + 1)
+            # Usar estos bordes para el histograma
+            frecuencias, _ = np.histogram(datos, bins=bordes)
+            frecuencias = frecuencias.tolist()
+            bordes = bordes.tolist()
+        else:
+            # Para otras distribuciones, usar comportamiento estándar
+            frecuencias, bordes = np.histogram(datos, bins=num_intervalos)
+            frecuencias = frecuencias.tolist()
+            bordes = bordes.tolist()
 
         # — 1) Frecuencias esperadas iniciales —
         f_esperadas = []
