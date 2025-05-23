@@ -456,20 +456,21 @@ class DistribucionesApp(ctk.CTk):
             frecuencias = frecuencias.tolist()
             bordes = bordes.tolist()
 
-        # — 1) Frecuencias esperadas iniciales —
-        f_esperadas = []
-        for i in range(len(frecuencias)):
-            a, b = bordes[i], bordes[i+1]
-            if dist == "uniforme":
-                a0, b0 = float(self.uniforme_a_var.get()), float(self.uniforme_b_var.get())
-                p = (b - a) / (b0 - a0)
-            elif dist == "exponencial":
-                lam = float(self.exponencial_lambda_var.get())
-                p = cdf_exponencial(b, lam) - cdf_exponencial(a, lam)
-            else:  # normal
-                mu, sigma = float(self.normal_media_var.get()), float(self.normal_desviacion_var.get())
-                p = cdf_normal(b, mu, sigma) - cdf_normal(a, mu, sigma)
-            f_esperadas.append(p * n)
+        # — 2) Frecuencias esperadas —
+        if dist == "uniforme":
+            fe = n / len(frecuencias)
+            f_esperadas = [fe] * len(frecuencias)
+        else:
+            f_esperadas = []
+            for i in range(len(frecuencias)):
+                a, b = bordes[i], bordes[i+1]
+                if dist == "exponencial":
+                    lam = float(self.exponencial_lambda_var.get())
+                    p = cdf_exponencial(b, lam) - cdf_exponencial(a, lam)
+                else:  # normal
+                    mu, sigma = float(self.normal_media_var.get()), float(self.normal_desviacion_var.get())
+                    p = cdf_normal(b, mu, sigma) - cdf_normal(a, mu, sigma)
+                f_esperadas.append(p * n)
 
         # — 2) Función auxiliar de agrupamiento —
         def agrupar(i, j):
